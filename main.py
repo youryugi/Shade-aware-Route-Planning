@@ -352,7 +352,7 @@ def update_cool_route(coef, start_time, sample_interval=300):
         nonlocal t_heuristic_accum, h_calls
         t0 = time.time(); h_calls += 1
         lat, lon = G.nodes[node]['y'], G.nodes[node]['x']
-        dist = ox.distance.euclidean_dist_vec(lat, lon, goal_lat, goal_lon)
+        dist = ox.distance.euclidean(lat, lon, goal_lat, goal_lon)
         # Estimate time to reach straight-line distance (conservative)
         ratio = 0.5  # Assume half shade, can be replaced with more complex prediction
         h_val = dist * (1 + coef * ratio)
