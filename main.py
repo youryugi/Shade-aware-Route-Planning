@@ -26,27 +26,29 @@ import os, time, math, pickle, heapq
 # --------Update cost-------------------------------------------------------------------------------
 
 # File paths for building and road GML files
+bldg_directory = "bldg"
 bldg_gml_files = [
-    r"bldg\51357451_bldg_6697_op.gml",
-    r"bldg\51357452_bldg_6697_op.gml",
-    r"bldg\51357453_bldg_6697_op.gml",
-    r"bldg\51357461_bldg_6697_op.gml",
-    r"bldg\51357462_bldg_6697_op.gml",
-    r"bldg\51357463_bldg_6697_op.gml",
-    r"bldg\51357471_bldg_6697_op.gml",
-    r"bldg\51357472_bldg_6697_op.gml",
-    r"bldg\51357473_bldg_6697_op.gml"
+    r"51357451_bldg_6697_op.gml",
+    r"51357452_bldg_6697_op.gml",
+    r"51357453_bldg_6697_op.gml",
+    r"51357461_bldg_6697_op.gml",
+    r"51357462_bldg_6697_op.gml",
+    r"51357463_bldg_6697_op.gml",
+    r"51357471_bldg_6697_op.gml",
+    r"51357472_bldg_6697_op.gml",
+    r"51357473_bldg_6697_op.gml"
 ]
+road_directory = "tran"
 road_gml_files = [
-    r"tran\51357451_tran_6697_op.gml",
-    r"tran\51357452_tran_6697_op.gml",
-    r"tran\51357453_tran_6697_op.gml",
-    r"tran\51357461_tran_6697_op.gml",
-    r"tran\51357462_tran_6697_op.gml",
-    r"tran\51357463_tran_6697_op.gml",
-    r"tran\51357471_tran_6697_op.gml",
-    r"tran\51357472_tran_6697_op.gml",
-    r"tran\51357473_tran_6697_op.gml"
+    r"51357451_tran_6697_op.gml",
+    r"51357452_tran_6697_op.gml",
+    r"51357453_tran_6697_op.gml",
+    r"51357461_tran_6697_op.gml",
+    r"51357462_tran_6697_op.gml",
+    r"51357463_tran_6697_op.gml",
+    r"51357471_tran_6697_op.gml",
+    r"51357472_tran_6697_op.gml",
+    r"51357473_tran_6697_op.gml"
 ]
 # Path to save merged building data as .pkl
 pkl_path = r"bldg_merged_LL_135.5122_34.6246_UR_135.5502_34.6502.pkl"
@@ -79,7 +81,7 @@ if os.path.exists(pkl_path):
         bldg_merged_gdf = pickle.load(f)
 else:
     print("No .pkl cache found, reading and merging GML files...")
-    bldg_gdf_list = [gpd.read_file(file) for file in bldg_gml_files]
+    bldg_gdf_list = [gpd.read_file(f"{bldg_directory}{os.path.sep}{file}") for file in bldg_gml_files]
     bldg_merged_gdf = pd.concat(bldg_gdf_list, ignore_index=True)
 
     print("Saving as .pkl...")
@@ -95,7 +97,7 @@ print(bldg_merged_gdf.head())
 # ---------------------------------------------------------------------------------------
 starttime2 = time.time()
 
-road_gdf_list = [gpd.read_file(file) for file in road_gml_files]
+road_gdf_list = [gpd.read_file(f"{road_directory}{os.path.sep}{file}") for file in road_gml_files]
 merged_road_gdf = pd.concat(road_gdf_list, ignore_index=True)
 endtime2 = time.time()
 readtrantime = endtime2 - starttime2
@@ -185,7 +187,7 @@ shadow_gdf = gpd.GeoDataFrame(geometry=[shadow_union], crs='EPSG:6669')
 # ---------------------------------------------------------------------------------------
 # Prepare for plotting
 # ---------------------------------------------------------------------------------------
-plt.rcParams['font.family'] = 'SimHei'
+#plt.rcParams['font.family'] = 'Lato'
 fig, ax = plt.subplots(figsize=(12, 8))
 
 bounds = building_gdf.total_bounds
@@ -409,7 +411,7 @@ def update_cool_route(coef, start_time, sample_interval=300):
         t_neighbor_accum += (time.time() - t_nb0)
 
     if goal_node not in g_best:
-        print("[A*] No feasible path found\n"); return None
+        print("[A*] No feasible path found"); return None
 
     # =============== Backtrack latest timestamp state ===============
     goal_states = [(t, key) for key,t in [(k[0],k[1]) for k in pred if k[0]==goal_node]]
@@ -428,7 +430,7 @@ def update_cool_route(coef, start_time, sample_interval=300):
     route = gdf_edges.loc[edges].copy()
 
     # =============== Print timing report ===============
-    print("\n======= A★ Path‑finding Timing Report =======")
+    print("======= A★ Path‑finding Timing Report =======")
     print(f"Total elapsed              : {time.time()-t_global_start:.4f} s")
     print(f"Heuristic calls / time     : {h_calls} / {t_heuristic_accum:.4f} s")
     print(f"Cost calls      / time     : {td_calls} / {t_cost_accum:.4f} s")
