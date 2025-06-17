@@ -8,6 +8,8 @@ import networkx as nx
 import osmnx as ox
 from shapely.ops import unary_union
 
+from rich.progress import Progress
+
 # If you need projection or Transformer:
 from pyproj import Transformer
 
@@ -77,26 +79,32 @@ def precompute_shadow_ratios():
     start_time_all = time.time()
     count_inter = 0
 
-    for i, (u,v,k) in enumerate(gdf_edges.index):
-        edge_geom = gdf_edges.loc[(u,v,k),'geometry']
-        edge_len = edge_geom.length
+    with Progress() as p:
+        task = p.add_task("Processing edges ...", total=len(gdf_edges.index))
+        p.update(task, advance=0)
 
-        # Process each time slice
-        for t in sorted_times:
-            shadow_poly = time_to_union[t]
-            if shadow_poly is None or shadow_poly.is_empty:
-                ratio = 0.0
-            else:
-                # Perform intersection
-                count_inter += 1
-                inters = edge_geom.intersection(shadow_poly)
-                shadow_len = inters.length if (not inters.is_empty) else 0.0
-                ratio = shadow_len / edge_len if edge_len > 0 else 0.0
+        for i, (u,v,k) in enumerate(gdf_edges.index):
+            edge_geom = gdf_edges.loc[(u,v,k),'geometry']
+            edge_len = edge_geom.length
 
-            precomputed[(u,v,k,t)] = ratio
+            # Process each time slice
+            for t in sorted_times:
+                shadow_poly = time_to_union[t]
+                if shadow_poly is None or shadow_poly.is_empty:
+                    ratio = 0.0
+                else:
+                    # Perform intersection
+                    count_inter += 1
+                    inters = edge_geom.intersection(shadow_poly)
+                    shadow_len = inters.length if (not inters.is_empty) else 0.0
+                    ratio = shadow_len / edge_len if edge_len > 0 else 0.0
 
-        if (i+1) % 100 == 0:
-            print(f"Processed {i+1}/{total_edges} edges...")
+                precomputed[(u,v,k,t)] = ratio
+
+            update_period = 100
+            if (i+1) % update_period == 0:
+                #print(f"Processed {i+1}/{total_edges} edges...")
+                p.update(task, advance=update_period)
 
     end_time_all = time.time()
     print("========== Offline batch computation complete ==========")
