@@ -269,6 +269,12 @@ proj_crs = 'EPSG:6669'
 transformer_from_wgs84 = Transformer.from_crs('EPSG:4326', proj_crs, always_xy=True)
 
 def on_map_click(event):
+    """
+    Routine used to capture the origin and destination points on the map.
+    When the destination is captured, the route calculation is triggered immediately and displayed
+    as soon as the results become available.
+    Clicking again on the map will discard previously calculated routes and set a new origin point.
+    """
     global click_count, origin_point_wgs84, destination_point_wgs84
     global origin_marker, destination_marker
 
@@ -278,14 +284,14 @@ def on_map_click(event):
             x, y = transformer_from_wgs84.transform(origin_point_wgs84[1], origin_point_wgs84[0])
             origin_marker = ax.plot(x, y, marker='o', color='blue', markersize=8, label='Origin')[0]
             plt.draw()
-            click_count += 1
+            click_count = 1
             print(f"Reproduced origin: (lat={origin_point_wgs84[0]}, lon={origin_point_wgs84[1]})")
         elif click_count == 1:
             destination_point_wgs84 = manual_destination_point_wgs84
             x, y = transformer_from_wgs84.transform(destination_point_wgs84[1], destination_point_wgs84[0])
             destination_marker = ax.plot(x, y, marker='o', color='magenta', markersize=8, label='Destination')[0]
             plt.draw()
-            click_count += 1
+            click_count = 0
             print(f"Reproduced destination: (lat={destination_point_wgs84[0]}, lon={destination_point_wgs84[1]})")
         return
 
@@ -296,21 +302,30 @@ def on_map_click(event):
     lon, lat = transformer_to_wgs84.transform(x_coord, y_coord)
 
     if click_count == 0:
+        clear_points()
         origin_point_wgs84 = (lat, lon)
         if origin_marker is not None:
             origin_marker.remove()
+        if destination_marker is not None:
+            destination_marker.remove()
         origin_marker = ax.plot(x_coord, y_coord, marker='o', color='blue', markersize=8, label='Origin')[0]
         plt.draw()
         click_count += 1
         print(f"Selected origin: (lat={lat}, lon={lon})")
     elif click_count == 1:
         destination_point_wgs84 = (lat, lon)
-        if destination_marker is not None:
-            destination_marker.remove()
+        # if destination_marker is not None:
+        #     destination_marker.remove()
         destination_marker = ax.plot(x_coord, y_coord, marker='o', color='magenta', markersize=8, label='Destination')[0]
         plt.draw()
-        click_count += 1
+        #click_count += 1
         print(f"Selected destination: (lat={lat}, lon={lon})")
+
+        # Now that origin and destination have been decided, compute the path and display it
+
+        generate_path()
+        # Reset state so that next click resets the origin point
+        click_count = 0
 
 fig.canvas.mpl_connect('button_press_event', on_map_click)
 start_time = date_time
@@ -322,7 +337,6 @@ start_time = date_time
 # ----------------------------------------------------------------------------
 # 2. A* Search: Multi-state + time-dependent cost + full timing report
 # ----------------------------------------------------------------------------
-
 def update_cool_route(coef, start_time, sample_interval=300):
     """Return GeoDataFrame: optimal shade-aware route + print full timing report"""
 
@@ -440,7 +454,7 @@ def update_cool_route(coef, start_time, sample_interval=300):
     return route
 
 # ---------------------------------------------------------------------------------------
-# Set up Slider and Buttons
+# Set up Slider to set the importance of the shade in the route calculation
 # ---------------------------------------------------------------------------------------
 initial_coef = 1
 plt.rcParams['font.family'] = 'DejaVu Sans'
@@ -463,10 +477,14 @@ ax_coef.text(
     transform=ax_coef.transAxes
 )
 
-ax_button_update = plt.axes([0.8, 0.05, 0.1, 0.075])
-button_update = Button(ax_button_update, 'Update Route')
-
 def update_route(event):
+    """
+    Routine used to recompute the shade-aware route when the value on the slider has been changed.
+    """
+    # First, check that the origin and destination are indeed set
+    if origin_point_wgs84 is None or destination_point_wgs84 is None:
+        return
+
     coef_val = coef_slider.val
     new_route_gdf = update_cool_route(coef_val, start_time)
 
@@ -480,22 +498,13 @@ def update_route(event):
     print("wanted route:")
     calculate_shadow_stats(new_route_gdf, time_to_union, start_time, coef=coef_slider.val)
 
-button_update.on_clicked(update_route)
 
-# ---------------------------------------------------------------------------------------
-# Generate Path button
-# ---------------------------------------------------------------------------------------
-ax_button_generate = plt.axes([0.65, 0.15, 0.1, 0.075])
-ax_button_generate.text(
-    -2.5, 0.65,  # x coordinate can be adjusted as needed
-    'Please click on the map to select the start and end points ',
-    ha='center',
-    va='center',
-    transform=ax_button_generate.transAxes
-)
-button_generate = Button(ax_button_generate, 'Generate Path')
+coef_slider.on_changed(update_route)
 
-def generate_path(event):
+def generate_path():
+    """
+    Computes and displays on the figure the shortest route and the shade-aware route
+    """
     if origin_point_wgs84 is None or destination_point_wgs84 is None:
         print("Please click on the map to select the start and end points first.")
         return
@@ -532,15 +541,12 @@ def generate_path(event):
 
     plt.draw()
     print("wanted route:")
- 
-button_generate.on_clicked(generate_path)
 
-# ---------------------------------------------------------------------------------------
-# Add: Clear start and end points button
-# ---------------------------------------------------------------------------------------
-ax_button_clear = plt.axes([0.8, 0.15, 0.1, 0.075])
-button_clear = Button(ax_button_clear, 'Clear Points')
-def clear_points(event):
+def clear_points():
+    """
+    Routine that will erase the path plotted on the graph.
+    It is called when a new origin point is set, erasing any previous path
+    """
     global click_count, origin_point_wgs84, destination_point_wgs84
     global origin_marker, destination_marker
 
@@ -559,8 +565,6 @@ def clear_points(event):
         if artist.get_label() in ['Shortest Bike Route', 'Wanted Bike Route', 'Origin', 'Destination']:
             artist.remove()
     plt.draw()
-
-button_clear.on_clicked(clear_points)
 
 # ---------------------------------------------------------------------------------------
 # North Arrow
