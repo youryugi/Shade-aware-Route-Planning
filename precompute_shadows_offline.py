@@ -8,6 +8,8 @@ from astral.sun import elevation, azimuth
 from datetime import datetime, timedelta, timezone
 import pickle
 
+import os
+
 interval_minutes = 1
 start_dt = datetime(2024, 12, 5, 9, tzinfo=timezone(timedelta(hours=9)))
 end_dt = datetime(2024, 12, 5, 10, tzinfo=timezone(timedelta(hours=9)))
@@ -84,20 +86,20 @@ def precompute_shadow_unions(building_gdf, start_dt, end_dt, interval_minutes, h
 #######################################
 # Read GML building data
 #######################################
-
+bldg_directory = "bldg"
 bldg_gml_files = [
-    r"bldg/51357451_bldg_6697_op.gml",
-    r"bldg/51357452_bldg_6697_op.gml",
-    r"bldg/51357453_bldg_6697_op.gml",
-    r"bldg/51357461_bldg_6697_op.gml",
-    r"bldg/51357462_bldg_6697_op.gml",
-    r"bldg/51357463_bldg_6697_op.gml",
-    r"bldg/51357471_bldg_6697_op.gml",
-    r"bldg/51357472_bldg_6697_op.gml",
-    r"bldg/51357473_bldg_6697_op.gml"
+    r"51357451_bldg_6697_op.gml",
+    r"51357452_bldg_6697_op.gml",
+    r"51357453_bldg_6697_op.gml",
+    r"51357461_bldg_6697_op.gml",
+    r"51357462_bldg_6697_op.gml",
+    r"51357463_bldg_6697_op.gml",
+    r"51357471_bldg_6697_op.gml",
+    r"51357472_bldg_6697_op.gml",
+    r"51357473_bldg_6697_op.gml"
 ]
 
-bldg_gdf_list = [gpd.read_file(file) for file in bldg_gml_files]
+bldg_gdf_list = [gpd.read_file(f"{bldg_directory}{os.path.sep}{file}") for file in bldg_gml_files]
 bldg_merged_gdf = pd.concat(bldg_gdf_list, ignore_index=True)
 
 if bldg_merged_gdf.crs.to_epsg() != 6669:
