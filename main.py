@@ -115,7 +115,7 @@ if road_gdf.crs.to_epsg() != 6669:
 # ---------------------------------------------------------------------------------------
 # calculate_shadow_stats (for demonstration; otherwise, use precomputed)
 # ---------------------------------------------------------------------------------------
-def calculate_shadow_stats(route_gdf, time_to_union, start_time, coef, sample_interval=60):
+def calculate_shadow_stats(route_gdf, time_to_union, start_time, sample_interval=60):
     speed = 10 * 1000 / 3600  # 10km/h -> m/s
     global intersection_counter
     current_time = start_time
@@ -163,11 +163,33 @@ def calculate_shadow_stats(route_gdf, time_to_union, start_time, coef, sample_in
           f"Distance in sunlight: {non_shadow_distance:.2f} m, "
           f"Total distance: {total_distance:.2f} m")
     print("Intersection calculations:", intersection_counter)
+    return non_shadow_distance, shadow_distance
+
+def set_shadesunlight_plot(sun_part, shade_part):
+    """
+    Makes stacked histogram to show proportions of shade/sunlit path
+    """
+    global proportions_ax
+
+    proportions_ax.clear()
+
+    columns = ("Shortest path", "Shade-aware path")
+    proportions_ax.bar(columns, sun_part, 0.5, label="sunlit", color='yellow')
+    proportions_ax.bar(columns, shade_part, 0.5, label="shade", bottom=sun_part, color='grey')
+    proportions_ax.set_ylabel("Distance (m)")
+
+    proportions_ax.legend(loc="upper left", ncols=2)
+    proportions_ax.set_title("Path lengths and shade proportions", fontsize=16)
+
+    proportions_ax.text(x=0, y=sun_part[0]/2, s=f"{sun_part[0]:.0f}", ha='center', va='center')
+    proportions_ax.text(x=0, y=shade_part[0]/2 + sun_part[0], s=f"{shade_part[0]:.0f}", ha='center', va='center')
+
+    proportions_ax.text(x=1, y=sun_part[1]/2, s=f"{sun_part[1]:.0f}", ha='center', va='center')
+    proportions_ax.text(x=1, y=shade_part[1]/2 + sun_part[1], s=f"{shade_part[1]:.0f}", ha='center', va='center')
 
 # ---------------------------------------------------------------------------------------
 # Load time_to_union (shadow area for each time), and find nearest_time
 # ---------------------------------------------------------------------------------------
-
 with open(shadow_file, 'rb') as f:
     time_to_union = pickle.load(f)
 
@@ -188,7 +210,10 @@ shadow_gdf = gpd.GeoDataFrame(geometry=[shadow_union], crs='EPSG:6669')
 # Prepare for plotting
 # ---------------------------------------------------------------------------------------
 #plt.rcParams['font.family'] = 'Lato'
-fig, ax = plt.subplots(figsize=(12, 8))
+fig, axs = plt.subplots(ncols=2, figsize=(12, 8))
+
+ax = axs[0]
+proportions_ax = axs[1]
 
 bounds = building_gdf.total_bounds
 buffer = 10
@@ -214,13 +239,21 @@ legend_handles = [
     Line2D([0], [0], color='red',   linewidth=2, label='Shortest Route'),
     Line2D([0], [0], color='green', linewidth=2, label='Shade-aware Route'),
 ]
-plt.title("Roads, buildings, and shadows", fontsize=16)
-plt.legend(handles=legend_handles, loc='center left', bbox_to_anchor=(1, 0.5), fontsize=bigfontsize)
-plt.xlabel("X (m)", fontsize=bigfontsize)
-plt.ylabel("Y (m)", fontsize=bigfontsize)
-plt.xticks(fontsize=bigfontsize)
-plt.yticks(fontsize=bigfontsize)
-plt.grid(True)
+
+box = ax.get_position()
+ax.set_position([box.x0, box.y0, box.width, box.height * 0.85])
+
+ax.set_title("Roads, buildings, and shadows", fontsize=16)
+ax.legend(handles=legend_handles, ncol=2, loc='upper center', bbox_to_anchor=(0.0, -1.15, 1.0, 1.0), fontsize=bigfontsize)
+#ax.set_xlabel("X (m)", fontsize=bigfontsize)
+#ax.set_ylabel("Y (m)", fontsize=bigfontsize)
+#ax.set_xticklabels(fontsize=bigfontsize)
+#ax.set_yticklabels(fontsize=bigfontsize)
+ax.grid(True)
+
+set_shadesunlight_plot([0.0, 0.0], [0.0, 0.0])
+shortest_path_sunlit_length = 0.0
+shortest_path_shaded_length = 0.0
 
 # ---------------------------------------------------------------------------------------
 # Load OSMnx graph
@@ -280,6 +313,7 @@ def on_map_click(event):
 
     if manual_input_mode:
         if click_count == 0:
+            proportions_ax.clear()
             origin_point_wgs84 = manual_origin_point_wgs84
             x, y = transformer_from_wgs84.transform(origin_point_wgs84[1], origin_point_wgs84[0])
             origin_marker = ax.plot(x, y, marker='o', color='blue', markersize=8, label='Origin')[0]
@@ -496,7 +530,9 @@ def update_route(event):
         new_route_gdf.plot(ax=ax, color='green', linewidth=2, label='Wanted Bike Route')
     plt.draw()
     print("wanted route:")
-    calculate_shadow_stats(new_route_gdf, time_to_union, start_time, coef=coef_slider.val)
+    shade_aware_sunlit, shade_aware_shaded = calculate_shadow_stats(new_route_gdf, time_to_union, start_time)
+
+    set_shadesunlight_plot([shortest_path_sunlit_length, shade_aware_sunlit], [shortest_path_shaded_length, shade_aware_shaded])
 
 
 coef_slider.on_changed(update_route)
@@ -527,17 +563,23 @@ def generate_path():
     route_gdf.plot(ax=ax, color='red', linewidth=2, label='Shortest Bike Route')
 
     coef_val = coef_slider.val
-    new_route_gdf = update_cool_route(coef_val, start_time)
+    shade_aware_route_gdf = update_cool_route(coef_val, start_time)
 
     for artist in ax.lines + ax.collections:
         if artist.get_label() == 'Wanted Bike Route':
             artist.remove()
 
-    print("shortest route:")
-    calculate_shadow_stats(route_gdf, time_to_union, start_time, coef=coef_slider.val)
+    print("Shortest route:")
+    global shortest_path_shaded_length, shortest_path_sunlit_length
+    shortest_path_sunlit_length, shortest_path_shaded_length = calculate_shadow_stats(route_gdf, time_to_union, start_time)
 
-    if new_route_gdf is not None:
-        new_route_gdf.plot(ax=ax, color='green', linewidth=2, label='Wanted Bike Route')
+    print("Shade-aware route:")
+    shade_aware_sunlit, shade_aware_shaded = calculate_shadow_stats(shade_aware_route_gdf, time_to_union, start_time)
+
+    if shade_aware_route_gdf is not None:
+        shade_aware_route_gdf.plot(ax=ax, color='green', linewidth=2, label='Wanted Bike Route')
+
+    set_shadesunlight_plot([shortest_path_sunlit_length, shade_aware_sunlit], [shortest_path_shaded_length, shade_aware_shaded])
 
     plt.draw()
     print("wanted route:")
