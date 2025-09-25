@@ -174,8 +174,8 @@ def set_shadesunlight_plot(sun_part, shade_part):
     proportions_ax.clear()
 
     columns = ("Shortest path", "Shade-aware path")
-    proportions_ax.bar(columns, sun_part, 0.5, label="sunlit", color='yellow')
-    proportions_ax.bar(columns, shade_part, 0.5, label="shade", bottom=sun_part, color='grey')
+    proportions_ax.bar(columns, sun_part, 0.5, label="Sun-exposed distances", color='orange')
+    proportions_ax.bar(columns, shade_part, 0.5, label="Shaded distances", bottom=sun_part, color='lightblue')
     proportions_ax.set_ylabel("Distance (m)")
 
     proportions_ax.legend(loc="upper left", ncols=2)
